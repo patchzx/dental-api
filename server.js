@@ -50,49 +50,52 @@ app.get("/", (req, res) => {
   res.status(200).send("✅ Dental API Server is running!");
 });
 
-// ==========================================================
-// 📧 MAILEROO EMAIL ROUTE (FIXED HEADER)
-// ==========================================================
+// ============================
+// 📧 Maileroo Email Sender
+// ============================
+import express from "express";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
+
+dotenv.config();
+const app = express();
+app.use(express.json());
+
 app.post("/send-email", async (req, res) => {
+  const { to, subject, html } = req.body;
+
+  if (!to) {
+    return res.status(400).json({ success: false, message: "Missing recipient email" });
+  }
+
   try {
-    const { to, subject, html, text } = req.body;
+    console.log(`📧 Sending email via Maileroo to ${to}`);
 
-    if (!to || !subject || (!html && !text)) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
-
-    console.log("📧 Sending email to:", to);
-
-    const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
+    const response = await fetch("https://smtp.maileroo.com/api/v1/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ new header
+        "X-API-Key": process.env.MAILEROO_API_KEY, // ✅ REQUIRED HEADER
       },
       body: JSON.stringify({
-        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
+        from: "dentabase@yourdomain.com", // must be verified sender in Maileroo
         to,
         subject,
         html,
-        text,
       }),
     });
 
-    const result = await response.json().catch(() => ({}));
+    const result = await response.json();
 
     if (!response.ok) {
-      console.error("❌ Maileroo API Error:", result);
-      return res.status(response.status).json({
-        success: false,
-        message: result.message || "Maileroo API error",
-        result,
-      });
+      console.error("❌ Maileroo failed:", result);
+      return res.status(response.status).json({ success: false, message: result.message, result });
     }
 
-    console.log("✅ Maileroo response:", result);
-    res.status(200).json({ success: true, result });
+    console.log("✅ Maileroo email sent:", result);
+    res.json({ success: true, result });
   } catch (error) {
-    console.error("❌ Server Error (send-email):", error);
+    console.error("⚠️ Error sending email:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
