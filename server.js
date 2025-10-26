@@ -97,47 +97,7 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-// ==========================================================
-// 📱 IPROG SMS ROUTE
-// ==========================================================
-app.post("/send-sms", async (req, res) => {
-  try {
-    const { phoneNumber, message } = req.body;
-    if (!phoneNumber || !message)
-      return res.status(400).json({ error: "Missing phoneNumber or message" });
 
-    console.log("📱 Sending SMS to:", phoneNumber);
-
-    const response = await fetch("https://api.iprog.com.ph/sms/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.IPROG_API_TOKEN}`,
-      },
-      body: JSON.stringify({
-        number: phoneNumber,
-        message,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error("❌ iProg API Error:", result);
-      return res.status(response.status).json({
-        success: false,
-        message: "iProg API error",
-        result,
-      });
-    }
-
-    console.log("✅ iProg response:", result);
-    res.status(200).json({ success: true, result });
-  } catch (error) {
-    console.error("❌ Server Error (send-sms):", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
 // ==========================================================
 // 🔐 OTP ROUTE (EMAIL ONLY)
