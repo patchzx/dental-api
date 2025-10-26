@@ -9,7 +9,9 @@ dotenv.config(); // ✅ Load .env variables
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ CORS Configuration
+// ==========================================================
+// 🌍 CORS CONFIGURATION
+// ==========================================================
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
@@ -22,6 +24,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn("🚫 Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -40,18 +43,23 @@ app.use(
 app.options("*", cors());
 app.use(express.json());
 
-// ✅ Root check
+// ==========================================================
+// 🩺 ROOT CHECK
+// ==========================================================
 app.get("/", (req, res) => {
   res.status(200).send("✅ Dental API Server is running!");
 });
 
-// ------------------------------------------------------------
-// 📧 MAILEROO Email Route
-// ------------------------------------------------------------
+// ==========================================================
+// 📧 MAILEROO EMAIL ROUTE
+// ==========================================================
 app.post("/send-email", async (req, res) => {
   try {
-    const { to, subject, html } = req.body;
-    if (!to) return res.status(400).json({ error: "Missing email address" });
+    const { to, subject, html, text } = req.body;
+
+    if (!to || !subject || (!html && !text)) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
 
     console.log("📧 Sending email to:", to);
 
@@ -66,26 +74,37 @@ app.post("/send-email", async (req, res) => {
         to,
         subject,
         html,
+        text,
       }),
     });
 
     const result = await response.json();
+
+    if (!response.ok) {
+      console.error("❌ Maileroo API Error:", result);
+      return res.status(response.status).json({
+        success: false,
+        message: "Maileroo API error",
+        result,
+      });
+    }
+
     console.log("✅ Maileroo response:", result);
     res.status(200).json({ success: true, result });
   } catch (error) {
-    console.error("❌ Error sending email:", error);
+    console.error("❌ Server Error (send-email):", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// ------------------------------------------------------------
-// 📱 IPROG SMS Route
-// ------------------------------------------------------------
+// ==========================================================
+// 📱 IPROG SMS ROUTE
+// ==========================================================
 app.post("/send-sms", async (req, res) => {
   try {
     const { phoneNumber, message } = req.body;
-    if (!phoneNumber)
-      return res.status(400).json({ error: "Missing phoneNumber" });
+    if (!phoneNumber || !message)
+      return res.status(400).json({ error: "Missing phoneNumber or message" });
 
     console.log("📱 Sending SMS to:", phoneNumber);
 
@@ -102,20 +121,30 @@ app.post("/send-sms", async (req, res) => {
     });
 
     const result = await response.json();
+
+    if (!response.ok) {
+      console.error("❌ iProg API Error:", result);
+      return res.status(response.status).json({
+        success: false,
+        message: "iProg API error",
+        result,
+      });
+    }
+
     console.log("✅ iProg response:", result);
     res.status(200).json({ success: true, result });
   } catch (error) {
-    console.error("❌ Error sending SMS:", error);
+    console.error("❌ Server Error (send-sms):", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// ------------------------------------------------------------
-// 🔐 OTP Route (Email Only)
-// ------------------------------------------------------------
+// ==========================================================
+// 🔐 OTP ROUTE (EMAIL ONLY)
+// ==========================================================
 app.post("/send-otp", async (req, res) => {
   try {
-    const { destination, otp } = req.body; // only email OTP
+    const { destination, otp } = req.body;
     if (!destination || !otp)
       return res.status(400).json({ error: "Missing required fields" });
 
@@ -141,12 +170,25 @@ app.post("/send-otp", async (req, res) => {
     });
 
     const result = await response.json();
+
+    if (!response.ok) {
+      console.error("❌ Maileroo OTP Error:", result);
+      return res.status(response.status).json({
+        success: false,
+        message: "Maileroo OTP sending failed",
+        result,
+      });
+    }
+
     console.log("✅ OTP Email sent:", result);
     res.status(200).json({ success: true, result });
   } catch (error) {
-    console.error("❌ Error sending OTP email:", error);
+    console.error("❌ Server Error (send-otp):", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
+// ==========================================================
+// 🚀 START SERVER
+// ==========================================================
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
