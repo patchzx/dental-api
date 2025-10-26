@@ -63,7 +63,7 @@ app.post("/send-email", async (req, res) => {
 
     console.log("📧 Sending email to:", to);
 
-    const response = await fetch("https://api.maileroo.net/v1/send", {
+    const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
