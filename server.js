@@ -51,7 +51,7 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================================
-// 📧 MAILEROO EMAIL ROUTE
+// 📧 MAILEROO EMAIL ROUTE (FIXED HEADER)
 // ==========================================================
 app.post("/send-email", async (req, res) => {
   try {
@@ -67,7 +67,7 @@ app.post("/send-email", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
+        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ Correct header
       },
       body: JSON.stringify({
         from: `Dentabase <${process.env.MAILEROO_FROM}>`,
@@ -84,7 +84,7 @@ app.post("/send-email", async (req, res) => {
       console.error("❌ Maileroo API Error:", result);
       return res.status(response.status).json({
         success: false,
-        message: "Maileroo API error",
+        message: result.message || "Maileroo API error",
         result,
       });
     }
@@ -97,10 +97,8 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-
-
 // ==========================================================
-// 🔐 OTP ROUTE (EMAIL ONLY)
+// 🔐 OTP ROUTE (FIXED HEADER)
 // ==========================================================
 app.post("/send-otp", async (req, res) => {
   try {
@@ -114,7 +112,7 @@ app.post("/send-otp", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
+        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ Correct header
       },
       body: JSON.stringify({
         from: `Dentabase <${process.env.MAILEROO_FROM}>`,
@@ -135,7 +133,7 @@ app.post("/send-otp", async (req, res) => {
       console.error("❌ Maileroo OTP Error:", result);
       return res.status(response.status).json({
         success: false,
-        message: "Maileroo OTP sending failed",
+        message: result.message || "Maileroo OTP sending failed",
         result,
       });
     }
@@ -147,6 +145,7 @@ app.post("/send-otp", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 
 // ==========================================================
 // 🚀 START SERVER
