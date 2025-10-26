@@ -2,13 +2,14 @@
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
+import dotenv from "dotenv";
+
+dotenv.config(); // ✅ Load .env variables
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-
-
-// ✅ Use the official cors middleware instead of manual headers
+// ✅ CORS Configuration
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
@@ -36,16 +37,13 @@ app.use(
   })
 );
 
-// ✅ VERY IMPORTANT — handle OPTIONS explicitly for all routes
 app.options("*", cors());
-
 app.use(express.json());
 
 // ✅ Root check
 app.get("/", (req, res) => {
   res.status(200).send("✅ Dental API Server is running!");
 });
-
 
 // ------------------------------------------------------------
 // 📧 MAILEROO Email Route
@@ -57,14 +55,14 @@ app.post("/send-email", async (req, res) => {
 
     console.log("📧 Sending email to:", to);
 
-    const response = await fetch("https://api.maileroo.net/v1/send", {
+    const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MAILEROO_API_KEY}`,
+        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
       },
       body: JSON.stringify({
-        from: "Dentabase <noreply@dentabase.org>",
+        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
         to,
         subject,
         html,
@@ -80,14 +78,14 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-
 // ------------------------------------------------------------
 // 📱 IPROG SMS Route
 // ------------------------------------------------------------
 app.post("/send-sms", async (req, res) => {
   try {
     const { phoneNumber, message } = req.body;
-    if (!phoneNumber) return res.status(400).json({ error: "Missing phoneNumber" });
+    if (!phoneNumber)
+      return res.status(400).json({ error: "Missing phoneNumber" });
 
     console.log("📱 Sending SMS to:", phoneNumber);
 
@@ -95,10 +93,10 @@ app.post("/send-sms", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.IPROG_API_KEY}`,
+        Authorization: `Bearer ${process.env.IPROG_API_TOKEN}`,
       },
       body: JSON.stringify({
-        number: phoneNumber, // ✅ iProg expects "number"
+        number: phoneNumber,
         message,
       }),
     });
@@ -112,69 +110,43 @@ app.post("/send-sms", async (req, res) => {
   }
 });
 
-
 // ------------------------------------------------------------
-// 🔐 OTP Route (Email or SMS-based OTP Delivery)
+// 🔐 OTP Route (Email Only)
 // ------------------------------------------------------------
 app.post("/send-otp", async (req, res) => {
   try {
-    const { destination, method, otp } = req.body; // method: 'email' | 'sms'
-    if (!destination || !method || !otp)
+    const { destination, otp } = req.body; // only email OTP
+    if (!destination || !otp)
       return res.status(400).json({ error: "Missing required fields" });
 
-    console.log(`🔐 Sending OTP to ${destination} via ${method}`);
+    console.log(`🔐 Sending OTP email to ${destination}`);
 
-    if (method === "email") {
-      // ✉️ Send OTP via Maileroo
-      const response = await fetch("https://api.maileroo.net/v1/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.MAILEROO_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: "Dentabase <noreply@dentabase.org>",
-          to: destination,
-          subject: "🔐 Your Dentabase Verification Code",
-          html: `
-            <h2>Verification Code</h2>
-            <p>Your OTP code is:</p>
-            <h1 style="color:#0f766e">${otp}</h1>
-            <p>This code expires in 5 minutes.</p>
-          `,
-        }),
-      });
+    const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
+      },
+      body: JSON.stringify({
+        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
+        to: destination,
+        subject: "🔐 Your Dentabase Verification Code",
+        html: `
+          <h2>Verification Code</h2>
+          <p>Your OTP code is:</p>
+          <h1 style="color:#0f766e">${otp}</h1>
+          <p>This code expires in 5 minutes.</p>
+        `,
+      }),
+    });
 
-      const result = await response.json();
-      console.log("✅ OTP Email sent:", result);
-      return res.status(200).json({ success: true, result });
-    }
-
-    if (method === "sms") {
-      // 📱 Send OTP via iProg
-      const response = await fetch("https://api.iprog.com.ph/sms/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.IPROG_API_KEY}`,
-        },
-        body: JSON.stringify({
-          number: destination,
-          message: `Your Dentabase verification code is ${otp}. This code will expire in 5 minutes.`,
-        }),
-      });
-
-      const result = await response.json();
-      console.log("✅ OTP SMS sent:", result);
-      return res.status(200).json({ success: true, result });
-    }
-
-    res.status(400).json({ error: "Invalid method. Use 'email' or 'sms'." });
+    const result = await response.json();
+    console.log("✅ OTP Email sent:", result);
+    res.status(200).json({ success: true, result });
   } catch (error) {
-    console.error("❌ Error sending OTP:", error);
+    console.error("❌ Error sending OTP email:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
