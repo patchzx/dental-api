@@ -63,11 +63,11 @@ app.post("/send-email", async (req, res) => {
 
     console.log("📧 Sending email to:", to);
 
-    const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
+    const response = await fetch("https://api.maileroo.net/v1/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ Correct header
+        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ new header
       },
       body: JSON.stringify({
         from: `Dentabase <${process.env.MAILEROO_FROM}>`,
@@ -78,7 +78,7 @@ app.post("/send-email", async (req, res) => {
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       console.error("❌ Maileroo API Error:", result);
