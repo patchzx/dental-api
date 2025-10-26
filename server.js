@@ -53,13 +53,7 @@ app.get("/", (req, res) => {
 // ============================
 // 📧 Maileroo Email Sender
 // ============================
-import express from "express";
-import fetch from "node-fetch";
-import dotenv from "dotenv";
 
-dotenv.config();
-const app = express();
-app.use(express.json());
 
 app.post("/send-email", async (req, res) => {
   const { to, subject, html } = req.body;
