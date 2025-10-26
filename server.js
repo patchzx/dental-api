@@ -54,27 +54,42 @@ app.get("/", (req, res) => {
 // 📧 Maileroo Email Sender (Final Working Version)
 // ============================
 
+// ============================
+// 📧 Maileroo Email Sender (v2 Compatible)
+// ============================
+
 app.post("/send-email", async (req, res) => {
-  const { to, subject, html } = req.body;
+  const { to, subject, html, plain } = req.body;
 
   if (!to) {
     return res.status(400).json({ success: false, message: "Missing recipient email" });
   }
 
   try {
-    console.log(`📧 Sending email via Maileroo to ${to}`);
+    console.log(`📧 Sending email via Maileroo v2 to ${to}`);
 
-    const response = await fetch("https://api.maileroo.com/send", {
+    const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`,
+        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // ✅ required for v2
       },
       body: JSON.stringify({
-        from: "DentaBase <no-reply@dentabase.org>",
-        to,
+        from: {
+          address: "no-reply@dentabase.org", // ✅ must be verified in Maileroo
+          display_name: "DentaBase",
+        },
+        to: [
+          {
+            address: to,
+            display_name: "Patient", // optional
+          },
+        ],
         subject,
         html,
+        plain: plain || "", // optional fallback
+        tracking: true,
+        tags: { system: "dental" },
       }),
     });
 
@@ -94,7 +109,6 @@ app.post("/send-email", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 
 // ==========================================================
 // 🔐 OTP ROUTE (FIXED HEADER)
