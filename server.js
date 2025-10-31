@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import path from "path";
+import admin from "firebase-admin";
 
 dotenv.config(); // ✅ Load .env variables
 
@@ -69,7 +71,7 @@ app.post("/send-email", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-       "X-API-Key": process.env.MAILEROO_API_KEY,   // ✅ fixed
+        "X-API-Key": process.env.MAILEROO_API_KEY,   // ✅ fixed
       },
       body: JSON.stringify({
         from: {
@@ -122,7 +124,7 @@ app.post("/send-otp", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": process.env.MAILEROO_API_KEY,   // ✅ fixed
+       "X-API-Key": process.env.MAILEROO_API_KEY,   // ✅ fixed
       },
       body: JSON.stringify({
         from: {
@@ -164,6 +166,97 @@ app.post("/send-otp", async (req, res) => {
     });
   }
 });
+
+
+
+
+if (!admin.apps.length) {
+  try {
+    const serviceAccountPath = path.resolve("./serviceAccountKey.json");
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccountPath),
+    });
+
+    console.log("✅ Firebase Admin initialized successfully");
+  } catch (err) {
+    console.error("❌ Firebase Admin initialization failed:", err.message);
+  }
+}
+
+
+
+
+// ==========================================================
+// 🔒 RESET PASSWORD + EMAIL NOTIFICATION
+// ==========================================================
+app.post("/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields (email or newPassword)",
+      });
+    }
+
+    // 🔹 Find the user
+    const user = await admin.auth().getUserByEmail(email).catch(() => null);
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
+    }
+
+    // 🔹 Update password
+    await admin.auth().updateUser(user.uid, { password: newPassword });
+    console.log(`✅ Password reset successful for: ${email}`);
+
+    // 🔹 Send email notification/log
+    const mailResponse = await fetch("https://smtp.maileroo.com/api/v2/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: {
+          address: process.env.MAILEROO_FROM || "no-reply@dentabase.org",
+          name: "DentaBase",
+        },
+        to: [{ address: email }],
+        subject: "✅ Password Changed Notification",
+        html: `
+          <div style="font-family: Arial, sans-serif; color: #333;">
+            <h2>Password Changed</h2>
+            <p>Hello ${email},</p>
+            <p>Your account password was successfully changed.</p>
+            <p>If you did not perform this action, please contact support immediately.</p>
+            <br>
+            <p>Regards,<br><b>DentaBase Team</b></p>
+          </div>
+        `,
+      }),
+    });
+
+    const mailResult = await mailResponse.json().catch(() => ({}));
+    if (!mailResponse.ok) {
+      console.warn("⚠️ Failed to send email notification:", mailResult);
+    } else {
+      console.log("📧 Email notification sent successfully");
+    }
+
+    return res.status(200).json({ success: true, message: "Password updated successfully" });
+
+  } catch (error) {
+    console.error("❌ Reset Password Error:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Internal server error while resetting password",
+    });
+  }
+});
+
+
 
 // ==========================================================
 // 🚀 START SERVER
