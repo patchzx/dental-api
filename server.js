@@ -165,6 +165,32 @@ app.post("/send-otp", async (req, res) => {
   }
 });
 
+// --- Reset Password Route ---
+app.post("/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword)
+      return res.status(400).json({ success: false, error: "Missing email or password" });
+
+    // 🔹 Initialize Firestore (use your existing admin app)
+    const db = admin.firestore();
+    const safeEmail = email.replace(/\./g, ",");
+    const userRef = db.collection("users").doc(safeEmail);
+
+    const userDoc = await userRef.get();
+    if (!userDoc.exists)
+      return res.status(404).json({ success: false, error: "User not found" });
+
+    // 🔐 Update password field
+    await userRef.update({ password: newPassword });
+
+    return res.json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    console.error("❌ Reset password error:", err);
+    return res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
 
 // ==========================================================
 // 🚀 START SERVER
