@@ -3,10 +3,6 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
-import fs from "fs";
-import admin from "firebase-admin";
-
-
 
 dotenv.config(); // ✅ Load .env variables
 
@@ -51,18 +47,20 @@ app.use(express.json());
 // 🩺 ROOT CHECK
 // ==========================================================
 app.get("/", (req, res) => {
-  res.status(200).send("✅ Dental API Server is running!");
+  res.status(200).send("✅ DentaBase API Server is running!");
 });
 
 // ==========================================================
-// 📧 MAILEROO EMAIL ROUTE (FIXED HEADER)
+// 📧 GENERAL EMAIL ROUTE (Maileroo)
 // ==========================================================
 app.post("/send-email", async (req, res) => {
   try {
     const { to, subject, html, text } = req.body;
 
     if (!to || !subject || (!html && !text)) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
 
     console.log("📧 Sending email to:", to);
@@ -71,11 +69,14 @@ app.post("/send-email", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ new header
+        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // ✅ correct header
       },
       body: JSON.stringify({
-        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
-        to,
+        from: {
+          address: process.env.MAILEROO_FROM || "no-reply@dentabase.org",
+          name: "DentaBase",
+        },
+        to: [{ address: to }],
         subject,
         html,
         text,
@@ -101,16 +102,13 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// 🔐 OTP ROUTE (FIXED HEADER)
+// 🔐 OTP EMAIL ROUTE
 // ==========================================================
-// --- OTP EMAIL SENDER ROUTE ---
 app.post("/send-otp", async (req, res) => {
   try {
     const { destination, otp } = req.body;
 
-    // ✅ Validate request body
     if (!destination || !otp) {
       return res.status(400).json({
         success: false,
@@ -120,12 +118,11 @@ app.post("/send-otp", async (req, res) => {
 
     console.log(`📨 Sending OTP to ${destination}`);
 
-    // ✅ Send email via Maileroo API
     const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // Correct header
+        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`,
       },
       body: JSON.stringify({
         from: {
@@ -149,7 +146,6 @@ app.post("/send-otp", async (req, res) => {
 
     const result = await response.json();
 
-    // ✅ Handle response
     if (!response.ok) {
       console.error("❌ Maileroo Error:", result);
       return res.status(response.status).json({
@@ -169,43 +165,9 @@ app.post("/send-otp", async (req, res) => {
   }
 });
 
-
-/// ✅ Initialize Firebase Admin
-const serviceAccount = JSON.parse(fs.readFileSync("./serviceAccountKey.json", "utf8"));
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
-
-// ✅ Reset password endpoint
-app.post("/reset-password", async (req, res) => {
-  const { email, newPassword } = req.body;
-
-  if (!email || !newPassword) {
-    return res.status(400).json({ success: false, error: "Missing email or password." });
-  }
-
-  try {
-    const usersRef = db.collection("users");
-    const snapshot = await usersRef.where("email", "==", email).limit(1).get();
-
-    if (snapshot.empty) {
-      return res.status(404).json({ success: false, error: "User not found." });
-    }
-
-    // ⚠️ Plain text update (for dev/demo only)
-    await snapshot.docs[0].ref.update({ password: newPassword });
-
-    return res.json({ success: true, message: "Password updated successfully." });
-  } catch (error) {
-    console.error("Error resetting password:", error);
-    return res.status(500).json({ success: false, error: "Internal server error." });
-  }
-});
-
-// ✅ Default root endpoint
-app.get("/", (req, res) => {
-  res.send("✅ DentaBase API is running securely with CORS enabled.");
-});
 // ==========================================================
 // 🚀 START SERVER
 // ==========================================================
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
