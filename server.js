@@ -16,6 +16,7 @@ const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
   "https://dentabase.org",
+  "https://www.dentabase.org",  // <-- add this
 ];
 
 app.use(
