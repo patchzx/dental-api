@@ -141,56 +141,8 @@ app.post("/send-otp", async (req, res) => {
   }
 });
 
-// ==============================
-// 🔥 Initialize Firebase (Safe for Render + Local)
-// ==============================
-let serviceAccount;
 
-try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    // Render-safe JSON (from environment variable)
-    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    console.log("✅ Loaded Firebase config from env");
-  } else {
-    // Local development fallback
-    serviceAccount = JSON.parse(
-      fs.readFileSync("./serviceAccountKey.json", "utf8")
-    );
-    console.log("✅ Loaded Firebase config from file");
-  }
-} catch (err) {
-  console.error("❌ Firebase config load error:", err.message);
-}
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
-
-// ==============================
-// 🔑 Reset Password Endpoint
-// ==============================
-app.post("/reset-password", async (req, res) => {
-  const { email, newPassword } = req.body;
-  if (!email || !newPassword)
-    return res
-      .status(400)
-      .json({ success: false, error: "Missing email or password" });
-
-  try {
-    const usersRef = db.collection("users");
-    const snapshot = await usersRef.where("email", "==", email).limit(1).get();
-
-    if (snapshot.empty)
-      return res.status(404).json({ success: false, error: "User not found" });
-
-    const userDoc = snapshot.docs[0];
-    await userDoc.ref.update({ password: newPassword });
-
-    res.json({ success: true, message: "Password updated successfully" });
-  } catch (error) {
-    console.error("❌ reset-password error:", error);
-    res.status(500).json({ success: false, error: "Internal server error" });
-  }
-});
 
 // ==============================
 // 🚀 Start Server
