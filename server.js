@@ -69,7 +69,7 @@ app.post("/send-email", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // ✅ correct header
+       "X-API-Key": process.env.MAILEROO_API_KEY,   // ✅ fixed
       },
       body: JSON.stringify({
         from: {
@@ -122,7 +122,7 @@ app.post("/send-otp", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`,
+        "X-API-Key": process.env.MAILEROO_API_KEY,   // ✅ fixed
       },
       body: JSON.stringify({
         from: {
