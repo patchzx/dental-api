@@ -1,12 +1,11 @@
-// ==========================================================
-// 🦷 DentaBase Server
-// ==========================================================
+// --- server.js ---
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config(); // ✅ Load .env variables
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -22,14 +21,21 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-      else {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
         console.warn("🚫 Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
+    allowedHeaders: [
+      "Origin",
+      "X-Requested-With",
+      "Content-Type",
+      "Accept",
+      "Authorization",
+    ],
     credentials: true,
   })
 );
@@ -45,37 +51,45 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================================
-// 📧 Maileroo General Email Sender (Clean v2)
+// 📧 MAILEROO EMAIL ROUTE (FIXED HEADER)
 // ==========================================================
 app.post("/send-email", async (req, res) => {
-  const { to, subject, html, plain } = req.body;
-  if (!to) return res.status(400).json({ success: false, message: "Missing recipient email" });
-
   try {
-    console.log(`📧 Sending email to ${to}`);
+    const { to, subject, html, text } = req.body;
+
+    if (!to || !subject || (!html && !text)) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    console.log("📧 Sending email to:", to);
 
     const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
+        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ new header
       },
       body: JSON.stringify({
-        from: { address: process.env.MAILEROO_FROM, display_name: "DentaBase" },
-        to: [{ address: to }],
+        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
+        to,
         subject,
         html,
-        plain: plain || "",
+        text,
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      console.error("❌ Maileroo Error:", result);
-      return res.status(response.status).json({ success: false, message: result.message || "Maileroo failed", result });
+      console.error("❌ Maileroo API Error:", result);
+      return res.status(response.status).json({
+        success: false,
+        message: result.message || "Maileroo API error",
+        result,
+      });
     }
 
-    console.log("✅ Email sent successfully:", result);
+    console.log("✅ Maileroo response:", result);
     res.status(200).json({ success: true, result });
   } catch (error) {
     console.error("❌ Server Error (send-email):", error);
@@ -83,53 +97,74 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
+
 // ==========================================================
-// 🔐 OTP ROUTE (FINAL FIXED VERSION)
+// 🔐 OTP ROUTE (FIXED HEADER)
 // ==========================================================
+// --- OTP EMAIL SENDER ROUTE ---
 app.post("/send-otp", async (req, res) => {
   try {
     const { destination, otp } = req.body;
-    if (!destination || !otp)
-      return res.status(400).json({ error: "Missing required fields" });
 
-    console.log(`🔐 Sending OTP email to ${destination}`);
+    // ✅ Validate request body
+    if (!destination || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (destination or otp)",
+      });
+    }
 
+    console.log(`📨 Sending OTP to ${destination}`);
+
+    // ✅ Send email via Maileroo API
     const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
+        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // Correct header
       },
       body: JSON.stringify({
-        from: { address: process.env.MAILEROO_FROM, display_name: "DentaBase" },
+        from: {
+          address: process.env.MAILEROO_FROM || "no-reply@dentabase.org",
+          name: "DentaBase",
+        },
         to: [{ address: destination }],
-        subject: "🔐 Your DentaBase Verification Code",
+        subject: "🔐 Your DentaBase OTP Code",
         html: `
-          <h2>Verification Code</h2>
-          <p>Your OTP code is:</p>
-          <h1 style="color:#0f766e">${otp}</h1>
-          <p>This code expires in 5 minutes.</p>
+          <div style="font-family: Arial, sans-serif; color: #333;">
+            <h2>🔐 Email Verification</h2>
+            <p>Your One-Time Password (OTP) is:</p>
+            <h1 style="color: #0f766e; letter-spacing: 2px;">${otp}</h1>
+            <p>This code will expire in 5 minutes. Do not share it with anyone.</p>
+            <br>
+            <p>Regards,<br><b>DentaBase Team</b></p>
+          </div>
         `,
       }),
     });
 
     const result = await response.json();
+
+    // ✅ Handle response
     if (!response.ok) {
-      console.error("❌ Maileroo OTP Error:", result);
+      console.error("❌ Maileroo Error:", result);
       return res.status(response.status).json({
         success: false,
-        message: result.message || "Maileroo OTP sending failed",
-        result,
+        message: result.message || "Failed to send OTP via Maileroo",
       });
     }
 
-    console.log("✅ OTP Email sent:", result);
-    res.status(200).json({ success: true, result });
+    console.log("✅ OTP Email sent successfully!");
+    return res.status(200).json({ success: true });
   } catch (error) {
-    console.error("❌ Server Error (send-otp):", error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("🔥 Server Error (send-otp):", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error while sending OTP",
+    });
   }
 });
+
 
 // ==========================================================
 // 🚀 START SERVER
