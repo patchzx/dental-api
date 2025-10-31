@@ -1,11 +1,12 @@
-// --- server.js ---
+// ==========================================================
+// 🦷 DentaBase Server
+// ==========================================================
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
-dotenv.config(); // ✅ Load .env variables
-
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -21,21 +22,14 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else {
         console.warn("🚫 Blocked by CORS:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Origin",
-      "X-Requested-With",
-      "Content-Type",
-      "Accept",
-      "Authorization",
-    ],
+    allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"],
     credentials: true,
   })
 );
@@ -50,68 +44,47 @@ app.get("/", (req, res) => {
   res.status(200).send("✅ Dental API Server is running!");
 });
 
-// ============================
-// 📧 Maileroo Email Sender (Final Working Version)
-// ============================
-
-// ============================
-// 📧 Maileroo Email Sender (v2 Compatible)
-// ============================
-
+// ==========================================================
+// 📧 Maileroo General Email Sender (Clean v2)
+// ==========================================================
 app.post("/send-email", async (req, res) => {
   const { to, subject, html, plain } = req.body;
-
-  if (!to) {
-    return res.status(400).json({ success: false, message: "Missing recipient email" });
-  }
+  if (!to) return res.status(400).json({ success: false, message: "Missing recipient email" });
 
   try {
-    console.log(`📧 Sending email via Maileroo v2 to ${to}`);
+    console.log(`📧 Sending email to ${to}`);
 
     const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // ✅ required for v2
+        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
       },
       body: JSON.stringify({
-        from: {
-          address: "no-reply@dentabase.org", // ✅ must be verified in Maileroo
-          display_name: "DentaBase",
-        },
-        to: [
-          {
-            address: to,
-            display_name: "Patient", // optional
-          },
-        ],
+        from: { address: process.env.MAILEROO_FROM, display_name: "DentaBase" },
+        to: [{ address: to }],
         subject,
         html,
-        plain: plain || "", // optional fallback
-        tracking: true,
-        tags: { system: "dental" },
+        plain: plain || "",
       }),
     });
 
     const result = await response.json();
-
     if (!response.ok) {
-      console.error("❌ Maileroo failed:", result);
-      return res
-        .status(response.status)
-        .json({ success: false, message: result.message, result });
+      console.error("❌ Maileroo Error:", result);
+      return res.status(response.status).json({ success: false, message: result.message || "Maileroo failed", result });
     }
 
-    console.log("✅ Maileroo email sent:", result);
-    res.json({ success: true, result });
+    console.log("✅ Email sent successfully:", result);
+    res.status(200).json({ success: true, result });
   } catch (error) {
-    console.error("⚠️ Error sending email:", error);
+    console.error("❌ Server Error (send-email):", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // ==========================================================
-// 🔐 OTP ROUTE (FIXED HEADER)
+// 🔐 OTP ROUTE (FINAL FIXED VERSION)
 // ==========================================================
 app.post("/send-otp", async (req, res) => {
   try {
@@ -125,12 +98,12 @@ app.post("/send-otp", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ Correct header
+        Authorization: `Bearer ${process.env.MAILEROO_TOKEN}`,
       },
       body: JSON.stringify({
-        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
-        to: destination,
-        subject: "🔐 Your Dentabase Verification Code",
+        from: { address: process.env.MAILEROO_FROM, display_name: "DentaBase" },
+        to: [{ address: destination }],
+        subject: "🔐 Your DentaBase Verification Code",
         html: `
           <h2>Verification Code</h2>
           <p>Your OTP code is:</p>
@@ -141,7 +114,6 @@ app.post("/send-otp", async (req, res) => {
     });
 
     const result = await response.json();
-
     if (!response.ok) {
       console.error("❌ Maileroo OTP Error:", result);
       return res.status(response.status).json({
@@ -158,7 +130,6 @@ app.post("/send-otp", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 
 // ==========================================================
 // 🚀 START SERVER
