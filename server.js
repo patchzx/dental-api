@@ -1,11 +1,32 @@
 // --- server.js ---
+// --- server.js ---
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
+import admin from "firebase-admin";
+import fs from "fs";
 
 dotenv.config(); // ✅ Load .env variables
 
+// ==========================================================
+// 🔥 FIREBASE ADMIN INITIALIZATION (Fixed JSON import)
+// ==========================================================
+const serviceAccount = JSON.parse(
+  fs.readFileSync("./serviceAccountKey.json", "utf8")
+);
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+  console.log("✅ Firebase Admin initialized");
+}
+
+
+// ==========================================================
+// ⚙️ EXPRESS INITIAL SETUP
+// ==========================================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -47,18 +68,20 @@ app.use(express.json());
 // 🩺 ROOT CHECK
 // ==========================================================
 app.get("/", (req, res) => {
-  res.status(200).send("✅ Dental API Server is running!");
+  res.status(200).send("✅ DentaBase API Server is running!");
 });
 
 // ==========================================================
-// 📧 MAILEROO EMAIL ROUTE (FIXED HEADER)
+// 📧 GENERAL EMAIL ROUTE (Maileroo)
 // ==========================================================
 app.post("/send-email", async (req, res) => {
   try {
     const { to, subject, html, text } = req.body;
 
     if (!to || !subject || (!html && !text)) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
 
     console.log("📧 Sending email to:", to);
@@ -67,11 +90,14 @@ app.post("/send-email", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": process.env.MAILEROO_TOKEN, // ✅ new header
+        Authorization: `Bearer ${process.env.MAILEROO_API_KEY}`,
       },
       body: JSON.stringify({
-        from: `Dentabase <${process.env.MAILEROO_FROM}>`,
-        to,
+        from: {
+          address: process.env.MAILEROO_FROM || "no-reply@dentabase.org",
+          name: "DentaBase",
+        },
+        to: [{ address: to }],
         subject,
         html,
         text,
@@ -97,16 +123,13 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
-
 // ==========================================================
-// 🔐 OTP ROUTE (FIXED HEADER)
+// 🔐 OTP EMAIL ROUTE
 // ==========================================================
-// --- OTP EMAIL SENDER ROUTE ---
 app.post("/send-otp", async (req, res) => {
   try {
     const { destination, otp } = req.body;
 
-    // ✅ Validate request body
     if (!destination || !otp) {
       return res.status(400).json({
         success: false,
@@ -116,12 +139,11 @@ app.post("/send-otp", async (req, res) => {
 
     console.log(`📨 Sending OTP to ${destination}`);
 
-    // ✅ Send email via Maileroo API
     const response = await fetch("https://smtp.maileroo.com/api/v2/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.MAILEROO_API_KEY}`, // Correct header
+        Authorization: `Bearer ${process.env.MAILEROO_API_KEY}`,
       },
       body: JSON.stringify({
         from: {
@@ -145,7 +167,6 @@ app.post("/send-otp", async (req, res) => {
 
     const result = await response.json();
 
-    // ✅ Handle response
     if (!response.ok) {
       console.error("❌ Maileroo Error:", result);
       return res.status(response.status).json({
@@ -165,14 +186,17 @@ app.post("/send-otp", async (req, res) => {
   }
 });
 
-// --- Reset Password Route ---
+// ==========================================================
+// 🔁 RESET PASSWORD ROUTE
+// ==========================================================
 app.post("/reset-password", async (req, res) => {
   try {
     const { email, newPassword } = req.body;
     if (!email || !newPassword)
-      return res.status(400).json({ success: false, error: "Missing email or password" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing email or password" });
 
-    // 🔹 Initialize Firestore (use your existing admin app)
     const db = admin.firestore();
     const safeEmail = email.replace(/\./g, ",");
     const userRef = db.collection("users").doc(safeEmail);
@@ -181,9 +205,9 @@ app.post("/reset-password", async (req, res) => {
     if (!userDoc.exists)
       return res.status(404).json({ success: false, error: "User not found" });
 
-    // 🔐 Update password field
     await userRef.update({ password: newPassword });
 
+    console.log(`✅ Password updated for ${email}`);
     return res.json({ success: true, message: "Password updated successfully" });
   } catch (err) {
     console.error("❌ Reset password error:", err);
@@ -191,8 +215,9 @@ app.post("/reset-password", async (req, res) => {
   }
 });
 
-
 // ==========================================================
 // 🚀 START SERVER
 // ==========================================================
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
